@@ -488,8 +488,8 @@ def main():
         "gpt2",
         "gpt2-medium",
         "microsoft/DialoGPT-medium",
-        # "gpt2-large",  # Uncomment if you have enough GPU memory
-        # "EleutherAI/pythia-1.4b",  # Alternative model architectures
+        "gpt2-large",  # Uncomment if you have enough GPU memory
+        "EleutherAI/pythia-1.4b",  # Alternative model architectures
     ]
     
     # Test texts of different types and lengths
@@ -630,7 +630,7 @@ def main():
                 successful_runs += 1
                 
             except Exception as e:
-                print(f"   ❌ Error processing {model_name} with {text_type}: {str(e)}")
+                print(f"  Error processing {model_name} with {text_type}: {str(e)}")
                 logger.error(f"Failed analysis for {model_name} - {text_type}: {e}")
                 
                 # Store error information
@@ -651,7 +651,7 @@ def main():
         # Store model results
         all_results[model_name] = model_results
         
-        print(f"\n✅ Completed model {model_name}")
+        print(f"\n Completed model {model_name}")
         print(f"   Successful text types: {sum(1 for r in model_results.values() if 'error' not in r)}/{len(test_texts)}")
     
     # Save comprehensive comparison results
@@ -693,7 +693,7 @@ def main():
     with open(master_results_file, 'w') as f:
         json.dump(convert_for_json(comparison_summary), f, indent=2)
     
-    print(f"📊 Master results saved to: {master_results_file}")
+    print(f"Master results saved to: {master_results_file}")
     
     # Create summary table
     summary_data = []
