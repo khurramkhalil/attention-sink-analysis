@@ -1,0 +1,14 @@
+Analysis completed at: Sat Jun 21 19:12:47 CDT 2025
+Job ID: 8233726
+Node: g009
+Generated files:
+./expanded_sink_analysis/comprehensive_analysis_results.json
+./expanded_sink_analysis/comprehensive_multi_architecture_analysis.png
+Aggregated files:
+total 31
+drwxrwsr-x 2 kkfdh rss-rde-hoquek-lab-rw  4096 Jun 21 19:11 .
+drwxrwsr-x 2 kkfdh rss-rde-hoquek-lab-rw  4096 Jun 21 19:12 ..
+-rw-rw-r-- 1 kkfdh rss-rde-hoquek-lab-rw  1774 Jun 21 19:11 aggregation_summary_report.txt
+-rw-rw-r-- 1 kkfdh rss-rde-hoquek-lab-rw  3165 Jun 21 19:11 attention_by_sink_position.csv
+-rw-rw-r-- 1 kkfdh rss-rde-hoquek-lab-rw 12896 Jun 21 19:11 attention_to_sinks_by_layer.csv
+-rw-rw-r-- 1 kkfdh rss-rde-hoquek-lab-rw 12430 Jun 21 19:11 sink_representation_similarity_by_layer.csv
