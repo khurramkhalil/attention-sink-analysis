@@ -19,7 +19,7 @@ source activate deepseek
 
 # Run the expanded attention sink analysis
 echo "Starting expanded multi-architecture analysis..."
-python expanded_sink_analysis.py
+python extended_multi_architecture_attention_sink_analysis.py
 
 # Check if analysis completed successfully
 if [ $? -eq 0 ]; then
