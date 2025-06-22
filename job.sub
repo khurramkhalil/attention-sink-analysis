@@ -1,0 +1,95 @@
+#!/bin/bash
+#SBATCH --partition=rss-gpu
+#SBATCH -N 1
+#SBATCH -c 16
+#SBATCH --mem 120G
+#SBATCH --gres=gpu:A100:1
+#SBATCH --export=all 
+#SBATCH --out=AttentionSink-%j.out     
+#SBATCH --output=attention_sink_%J_stdout.txt
+#SBATCH --error=attention_sink_%J_stderr.txt
+#SBATCH --time=12:00:00
+#SBATCH --job-name=SINK_ANALYSIS_%J
+#SBATCH --mail-user=khurram.khalil@missouri.edu
+#SBATCH --mail-type=ALL
+
+# Load modules
+module load miniconda3/4.10.3_gcc_9.5.0
+source activate deepseek
+
+# Set environment variables for optimal GPU usage
+export CUDA_VISIBLE_DEVICES=0
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:1024
+export HF_HOME=/tmp/huggingface_cache_$SLURM_JOB_ID
+export TRANSFORMERS_CACHE=/tmp/transformers_cache_$SLURM_JOB_ID
+
+# Create temporary cache directories
+mkdir -p $HF_HOME
+mkdir -p $TRANSFORMERS_CACHE
+
+# Print system information for debugging
+echo "Starting Attention Sink Analysis Job: $SLURM_JOB_ID"
+echo "Node: $SLURMD_NODENAME"
+echo "GPU: $CUDA_VISIBLE_DEVICES"
+echo "Memory: $SLURM_MEM_PER_NODE MB"
+echo "CPUs: $SLURM_CPUS_PER_TASK"
+echo "Time: $(date)"
+echo "=================================="
+
+# Install required packages if not available
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install transformers>=4.36.0 accelerate datasets evaluate scipy seaborn pandas matplotlib
+
+# Check GPU availability
+python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}'); print(f'GPU count: {torch.cuda.device_count()}'); print(f'GPU name: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"N/A\"}')"
+
+# Run the expanded attention sink analysis
+echo "Starting expanded multi-architecture analysis..."
+python expanded_sink_analysis.py
+
+# Check if analysis completed successfully
+if [ $? -eq 0 ]; then
+    echo "✅ Analysis completed successfully!"
+    
+    # Run aggregation if individual results exist
+    if [ -d "./expanded_sink_analysis" ]; then
+        echo "Running aggregation analysis..."
+        python analysis_aggregator.py
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ Aggregation completed successfully!"
+        else
+            echo "❌ Aggregation failed"
+        fi
+    fi
+    
+    # Create results summary
+    echo "Creating results summary..."
+    echo "Analysis completed at: $(date)" > analysis_completion_summary.txt
+    echo "Job ID: $SLURM_JOB_ID" >> analysis_completion_summary.txt
+    echo "Node: $SLURMD_NODENAME" >> analysis_completion_summary.txt
+    
+    # List generated files
+    echo "Generated files:" >> analysis_completion_summary.txt
+    find ./expanded_sink_analysis -name "*.json" -o -name "*.csv" -o -name "*.png" | head -20 >> analysis_completion_summary.txt
+    
+    if [ -d "./aggregated_analysis_tables" ]; then
+        echo "Aggregated files:" >> analysis_completion_summary.txt
+        ls -la ./aggregated_analysis_tables/ >> analysis_completion_summary.txt
+    fi
+    
+else
+    echo "❌ Analysis failed with exit code: $?"
+fi
+
+# Cleanup temporary cache directories
+echo "Cleaning up temporary files..."
+rm -rf $HF_HOME
+rm -rf $TRANSFORMERS_CACHE
+
+# Final status
+echo "=================================="
+echo "Job completed at: $(date)"
+echo "Total runtime: $SECONDS seconds"
+echo "Check analysis_completion_summary.txt for results overview"
+echo "=================================="
