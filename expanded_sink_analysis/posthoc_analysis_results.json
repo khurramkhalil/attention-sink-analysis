@@ -1,0 +1,335 @@
+{
+  "analysis_timestamp": "2025-06-23T16:04:47.607649",
+  "method": "tukey",
+  "family_analysis": {
+    "method": "tukey",
+    "dependent_variable": "Position_1",
+    "families_tested": [
+      "gpt2",
+      "llama",
+      "mistral"
+    ],
+    "descriptive_stats": {
+      "gpt2": {
+        "n": 75,
+        "mean": 0.4706251676742815,
+        "std": 0.08253732875959548,
+        "median": 0.45337583023744327,
+        "min": 0.31236520611370605,
+        "max": 0.6559521611779928
+      },
+      "llama": {
+        "n": 25,
+        "mean": 0.49673105037072673,
+        "std": 0.12516662668623355,
+        "median": 0.460523500922136,
+        "min": 0.3933705242234282,
+        "max": 0.7796255792491138
+      },
+      "mistral": {
+        "n": 25,
+        "mean": 0.5672507582232356,
+        "std": 0.10110456207897381,
+        "median": 0.5329173374921083,
+        "min": 0.4572716634720564,
+        "max": 0.7773337066173553
+      }
+    },
+    "pairwise_comparisons": {
+      "gpt2_vs_llama": {
+        "p_value": 0.47921835729127504,
+        "significant": false,
+        "confidence_interval_95": [
+          -0.07949314913195357,
+          0.02728138373906306
+        ],
+        "mean_difference": -0.02610588269644526,
+        "cohens_d": -0.2720221435678823,
+        "interpretation": "small"
+      },
+      "gpt2_vs_mistral": {
+        "p_value": 0.00010437150438125098,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.1500128569844624,
+          -0.04323832411344577
+        ],
+        "mean_difference": -0.09662559054895409,
+        "cohens_d": -1.092580942965817,
+        "interpretation": "large"
+      },
+      "llama_vs_mistral": {
+        "p_value": 0.031246649699942397,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.13590548861701396,
+          -0.005133927088003698
+        ],
+        "mean_difference": -0.07051970785250883,
+        "cohens_d": -0.6073024270311346,
+        "interpretation": "medium"
+      }
+    },
+    "effect_sizes": {},
+    "summary": {
+      "total_comparisons": 3,
+      "significant_comparisons": 2,
+      "significant_pairs": [
+        "gpt2_vs_mistral",
+        "llama_vs_mistral"
+      ],
+      "correction_method": "tukey",
+      "alpha_level": 0.05
+    }
+  },
+  "category_analysis": {
+    "method": "tukey",
+    "dependent_variable": "Position_1",
+    "categories_tested": [
+      "code",
+      "dialogue",
+      "narrative",
+      "short",
+      "technical"
+    ],
+    "descriptive_stats": {
+      "code": {
+        "n": 25,
+        "mean": 0.40733400908686845,
+        "std": 0.0448928442936461,
+        "median": 0.4019220392801799,
+        "min": 0.31236520611370605,
+        "max": 0.4946207143366337
+      },
+      "dialogue": {
+        "n": 25,
+        "mean": 0.4343860659422353,
+        "std": 0.04450774713514322,
+        "median": 0.4187251303810626,
+        "min": 0.3627190876286477,
+        "max": 0.5222439970821142
+      },
+      "narrative": {
+        "n": 25,
+        "mean": 0.48931689216444885,
+        "std": 0.03696036776361791,
+        "median": 0.4891345190505187,
+        "min": 0.4313094257377088,
+        "max": 0.563768994063139
+      },
+      "short": {
+        "n": 25,
+        "mean": 0.6653774328281482,
+        "std": 0.07922917699206042,
+        "median": 0.634432348733147,
+        "min": 0.5491459642847379,
+        "max": 0.7796255792491138
+      },
+      "technical": {
+        "n": 25,
+        "mean": 0.4794429115951061,
+        "std": 0.03209067131427121,
+        "median": 0.47758144900823635,
+        "min": 0.43713211733847857,
+        "max": 0.5461493330076337
+      }
+    },
+    "pairwise_comparisons": {
+      "code_vs_dialogue": {
+        "p_value": 0.3437065986570059,
+        "significant": false,
+        "confidence_interval_95": [
+          -0.06729918644145946,
+          0.013195072730725808
+        ],
+        "mean_difference": -0.027052056855366824,
+        "cohens_d": -0.5929546547978951,
+        "interpretation": "medium"
+      },
+      "code_vs_narrative": {
+        "p_value": 1.1302733704532386e-06,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.12223001266367303,
+          -0.04173575349148776
+        ],
+        "mean_difference": -0.08198288307758039,
+        "cohens_d": -1.9535440075871866,
+        "interpretation": "large"
+      },
+      "code_vs_short": {
+        "p_value": 2.4424906541753444e-15,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.29829055332737237,
+          -0.21779629415518711
+        ],
+        "mean_difference": -0.25804342374127975,
+        "cohens_d": -3.9264246430993652,
+        "interpretation": "large"
+      },
+      "code_vs_technical": {
+        "p_value": 2.2726269301664992e-05,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.11235603209433029,
+          -0.03186177292214502
+        ],
+        "mean_difference": -0.07210890250823765,
+        "cohens_d": -1.8106441741316652,
+        "interpretation": "large"
+      },
+      "dialogue_vs_narrative": {
+        "p_value": 0.002248513555782261,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.09517795580830621,
+          -0.014683696636120937
+        ],
+        "mean_difference": -0.05493082622221357,
+        "cohens_d": -1.315643875673452,
+        "interpretation": "large"
+      },
+      "dialogue_vs_short": {
+        "p_value": 2.4424906541753444e-15,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.27123849647200554,
+          -0.1907442372998203
+        ],
+        "mean_difference": -0.23099136688591293,
+        "cohens_d": -3.52211564256774,
+        "interpretation": "large"
+      },
+      "dialogue_vs_technical": {
+        "p_value": 0.01998429424703596,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.08530397523896346,
+          -0.004809716066778193
+        ],
+        "mean_difference": -0.045056845652870825,
+        "cohens_d": -1.1378211381726373,
+        "interpretation": "large"
+      },
+      "narrative_vs_short": {
+        "p_value": 2.4424906541753444e-15,
+        "significant": true,
+        "confidence_interval_95": [
+          -0.216307670249792,
+          -0.13581341107760672
+        ],
+        "mean_difference": -0.17606054066369936,
+        "cohens_d": -2.790431103284865,
+        "interpretation": "large"
+      },
+      "narrative_vs_technical": {
+        "p_value": 0.9605266496584866,
+        "significant": false,
+        "confidence_interval_95": [
+          -0.030373149016749888,
+          0.050121110155435376
+        ],
+        "mean_difference": 0.009873980569342744,
+        "cohens_d": 0.2795183694155303,
+        "interpretation": "small"
+      },
+      "short_vs_technical": {
+        "p_value": 2.4424906541753444e-15,
+        "significant": true,
+        "confidence_interval_95": [
+          0.14568739164694947,
+          0.22618165081913474
+        ],
+        "mean_difference": 0.1859345212330421,
+        "cohens_d": 3.0139698332899383,
+        "interpretation": "large"
+      }
+    },
+    "effect_sizes": {},
+    "summary": {
+      "total_comparisons": 10,
+      "significant_comparisons": 8,
+      "significant_pairs": [
+        "code_vs_narrative",
+        "code_vs_short",
+        "code_vs_technical",
+        "dialogue_vs_narrative",
+        "dialogue_vs_short",
+        "dialogue_vs_technical",
+        "narrative_vs_short",
+        "short_vs_technical"
+      ],
+      "correction_method": "tukey",
+      "alpha_level": 0.05
+    }
+  },
+  "interpretation": {
+    "family_findings": [
+      {
+        "comparison": "gpt2_vs_mistral",
+        "finding": "gpt2 shows significantly lower Position 1 attention than mistral",
+        "magnitude": "Mean difference: 0.097",
+        "effect_size": "Cohen's d = -1.093 (large)"
+      },
+      {
+        "comparison": "llama_vs_mistral",
+        "finding": "llama shows significantly lower Position 1 attention than mistral",
+        "magnitude": "Mean difference: 0.071",
+        "effect_size": "Cohen's d = -0.607 (medium)"
+      }
+    ],
+    "category_findings": [
+      {
+        "comparison": "code_vs_narrative",
+        "finding": "'code' text shows significantly lower Position 1 attention than 'narrative' text",
+        "magnitude": "Mean difference: 0.082",
+        "effect_size": "Cohen's d = -1.954 (large)"
+      },
+      {
+        "comparison": "code_vs_short",
+        "finding": "'code' text shows significantly lower Position 1 attention than 'short' text",
+        "magnitude": "Mean difference: 0.258",
+        "effect_size": "Cohen's d = -3.926 (large)"
+      },
+      {
+        "comparison": "code_vs_technical",
+        "finding": "'code' text shows significantly lower Position 1 attention than 'technical' text",
+        "magnitude": "Mean difference: 0.072",
+        "effect_size": "Cohen's d = -1.811 (large)"
+      },
+      {
+        "comparison": "dialogue_vs_narrative",
+        "finding": "'dialogue' text shows significantly lower Position 1 attention than 'narrative' text",
+        "magnitude": "Mean difference: 0.055",
+        "effect_size": "Cohen's d = -1.316 (large)"
+      },
+      {
+        "comparison": "dialogue_vs_short",
+        "finding": "'dialogue' text shows significantly lower Position 1 attention than 'short' text",
+        "magnitude": "Mean difference: 0.231",
+        "effect_size": "Cohen's d = -3.522 (large)"
+      },
+      {
+        "comparison": "dialogue_vs_technical",
+        "finding": "'dialogue' text shows significantly lower Position 1 attention than 'technical' text",
+        "magnitude": "Mean difference: 0.045",
+        "effect_size": "Cohen's d = -1.138 (large)"
+      },
+      {
+        "comparison": "narrative_vs_short",
+        "finding": "'narrative' text shows significantly lower Position 1 attention than 'short' text",
+        "magnitude": "Mean difference: 0.176",
+        "effect_size": "Cohen's d = -2.790 (large)"
+      },
+      {
+        "comparison": "short_vs_technical",
+        "finding": "'short' text shows significantly higher Position 1 attention than 'technical' text",
+        "magnitude": "Mean difference: 0.186",
+        "effect_size": "Cohen's d = 3.014 (large)"
+      }
+    ],
+    "effect_size_summary": {},
+    "practical_implications": []
+  }
+}
