@@ -492,10 +492,10 @@ class PostHocAnalyzer:
         }
         
         if save_results:
-            # Save to JSON
+            # Save to JSON with proper serialization
             output_file = self.json_file.parent / "posthoc_analysis_results.json"
             with open(output_file, 'w') as f:
-                json.dump(complete_results, f, indent=2)
+                json.dump(self._convert_for_json_serialization(complete_results), f, indent=2)
             print(f"✅ Complete post-hoc results saved: {output_file}")
         
         # Print final interpretation
@@ -540,6 +540,25 @@ class PostHocAnalyzer:
                 })
         
         return interpretation
+    
+    def _convert_for_json_serialization(self, obj):
+        """Convert numpy/pandas types for JSON serialization"""
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, pd.Timestamp):
+            return obj.isoformat()
+        elif isinstance(obj, dict):
+            return {k: self._convert_for_json_serialization(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_for_json_serialization(item) for item in obj]
+        else:
+            return obj
     
     def _print_final_interpretation(self, complete_results: Dict):
         """Print comprehensive interpretation of results"""
