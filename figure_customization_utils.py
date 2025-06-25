@@ -194,7 +194,7 @@ class EnhancedFigureGenerator:
         ax.set_xlabel('Transformer Layer', fontweight='bold')
         ax.set_ylabel('Average Attention to Sink Tokens', fontweight='bold')
         ax.grid(True, alpha=0.3)
-        ax.legend(loc='upper right')
+        ax.legend(loc='lower right')
         ax.set_xlim(0.5, len(layer_averages) + 0.5)
         
         FigureStyler.clean_axes(ax)
