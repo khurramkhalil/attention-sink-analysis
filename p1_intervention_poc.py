@@ -995,24 +995,44 @@ class P1InterventionAnalyzer:
         # Probing results summary
         report.append("## Probing Analysis Summary")
         report.append("")
-        if "probing_results" in self.results:
+        if "probing_results" in self.results and self.results["probing_results"]:
             probing = self.results["probing_results"]
             
-            # Find best performing layer
-            best_accuracy = 0
-            best_layer = 0
-            for layer_key, data in probing.items():
-                if data["accuracy_mean"] > best_accuracy:
-                    best_accuracy = data["accuracy_mean"]
-                    best_layer = int(layer_key.split('_')[1])
+            # Filter out metadata and get actual layer results
+            layer_results = {k: v for k, v in probing.items() 
+                           if k.startswith("layer_") and isinstance(v, dict)}
             
-            num_categories = len(set(t["category"] for t in self.test_texts))
-            chance_level = 1.0 / num_categories
-            
-            report.append(f"### Category Classification Results:")
-            report.append(f"- Best performance: Layer {best_layer} ({best_accuracy:.3f} accuracy)")
-            report.append(f"- Chance level: {chance_level:.3f}")
-            report.append(f"- Above chance: {'Yes' if best_accuracy > chance_level + 0.1 else 'No'}")
+            if layer_results:
+                # Find best performing layer
+                best_accuracy = 0
+                best_layer = 0
+                for layer_key, data in layer_results.items():
+                    if isinstance(data, dict) and "accuracy_mean" in data:
+                        if data["accuracy_mean"] > best_accuracy:
+                            best_accuracy = data["accuracy_mean"]
+                            try:
+                                best_layer = int(layer_key.split('_')[1])
+                            except (ValueError, IndexError):
+                                best_layer = 0
+                
+                num_categories = len(set(t["category"] for t in self.test_texts))
+                chance_level = 1.0 / num_categories
+                
+                report.append(f"### Category Classification Results:")
+                if best_accuracy > 0:
+                    report.append(f"- Best performance: Layer {best_layer} ({best_accuracy:.3f} accuracy)")
+                    report.append(f"- Chance level: {chance_level:.3f}")
+                    report.append(f"- Above chance: {'Yes' if best_accuracy > chance_level + 0.1 else 'No'}")
+                else:
+                    report.append("- No valid probing results found")
+                    report.append(f"- Chance level: {chance_level:.3f}")
+            else:
+                report.append("### Category Classification Results:")
+                report.append("- No layer results available")
+            report.append("")
+        else:
+            report.append("### Category Classification Results:")
+            report.append("- No probing analysis performed")
             report.append("")
         
         # Key findings
@@ -1084,11 +1104,24 @@ class P1InterventionAnalyzer:
             print(f"⚡ Significant impacts: {significant_count}")
             print(f"🎲 Causal evidence: {'Strong' if significant_count > total_interventions/2 else 'Moderate' if significant_count > 0 else 'Weak'}")
         
-        if "probing_results" in self.results:
-            # Calculate best probe performance
-            best_acc = max(data["accuracy_mean"] for data in self.results["probing_results"].values())
-            chance = 1.0 / len(set(t["category"] for t in self.test_texts))
-            print(f"🧠 P1 information content: {best_acc:.3f} accuracy (chance: {chance:.3f})")
+        if "probing_results" in self.results and self.results["probing_results"]:
+            # Filter out metadata and get actual layer results  
+            layer_results = {k: v for k, v in self.results["probing_results"].items() 
+                           if k.startswith("layer_") and isinstance(v, dict)}
+            
+            if layer_results:
+                # Calculate best probe performance
+                best_acc = 0
+                for data in layer_results.values():
+                    if isinstance(data, dict) and "accuracy_mean" in data:
+                        best_acc = max(best_acc, data["accuracy_mean"])
+                
+                chance = 1.0 / len(set(t["category"] for t in self.test_texts))
+                print(f"🧠 P1 information content: {best_acc:.3f} accuracy (chance: {chance:.3f})")
+            else:
+                print("🧠 P1 information content: No valid results")
+        else:
+            print("🧠 P1 information content: No probing performed")
         
         print(f"📁 All results saved to: {self.output_dir}")
         print("="*60)
