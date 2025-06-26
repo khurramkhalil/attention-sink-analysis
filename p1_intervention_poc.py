@@ -50,7 +50,7 @@ class P1InterventionAnalyzer:
         
         # Create subdirectories for organized output
         (self.output_dir / "figures").mkdir(exist_ok=True)
-        (self.output_dir / "data").mkdir(exist_ok=True)
+        (self.output_dir / "data_files").mkdir(exist_ok=True)
         (self.output_dir / "models").mkdir(exist_ok=True)
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -888,13 +888,13 @@ class P1InterventionAnalyzer:
     def _save_results(self):
         """Save results to JSON file with timestamp"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        results_file = self.output_dir / "data" / f"intervention_results_{timestamp}.json"
+        results_file = self.output_dir / "data_files" / f"intervention_results_{timestamp}.json"
         
         with open(results_file, 'w') as f:
             json.dump(self.results, f, indent=2, default=str)
         
         # Also save as latest
-        latest_file = self.output_dir / "data" / "latest_results.json"
+        latest_file = self.output_dir / "data_files" / "latest_results.json"
         with open(latest_file, 'w') as f:
             json.dump(self.results, f, indent=2, default=str)
         

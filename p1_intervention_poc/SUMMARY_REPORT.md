@@ -1,5 +1,5 @@
 # P1 Causal Intervention Analysis - Proof of Concept Report
-Generated: 2025-06-26 14:31:20
+Generated: 2025-06-26 14:37:19
 Model: gpt2-medium
 
 ## Baseline Performance Summary
@@ -25,15 +25,15 @@ Model: gpt2-medium
   ⚠️ Significant impact detected
 - mean_ablation_6_12_18: 7617.9% average degradation
   ⚠️ Significant impact detected
-- random_replacement_12_18: 336.9% average degradation
+- random_replacement_12_18: 345.4% average degradation
   ⚠️ Significant impact detected
-- noise_injection_6_12_18_noise_std0.5: 0.2% average degradation
-- noise_injection_6_12_18_noise_std0.1: 0.1% average degradation
+- noise_injection_6_12_18_noise_std0.5: 1.7% average degradation
+- noise_injection_6_12_18_noise_std0.1: -0.1% average degradation
 
 ## Probing Analysis Summary
 
 ### Category Classification Results:
-- Best performance: Layer 24 (0.600 accuracy)
+- Best performance: Layer 6 (0.500 accuracy)
 - Chance level: 0.200
 - Above chance: Yes
 
