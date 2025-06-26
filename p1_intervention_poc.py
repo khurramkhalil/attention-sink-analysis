@@ -85,12 +85,18 @@ class P1InterventionAnalyzer:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         
-        self.model = GPT2LMHeadModel.from_pretrained(
+        self.model = AutoModelForCausalLM.from_pretrained(
             self.model_name,
             output_attentions=True,
             output_hidden_states=True
         ).to(self.device)
         self.model.eval()
+        
+        # Pre-compute mean embedding for consistent mean_ablation intervention
+        with torch.no_grad():
+            all_embeddings = self.model.get_input_embeddings().weight.data
+            self._mean_embedding = all_embeddings.mean(dim=0).to(self.device)
+        logger.info("Pre-computed mean embedding vector for interventions")
         
         logger.info(f"Model loaded. Layers: {self.model.config.n_layer}")
     
@@ -102,24 +108,45 @@ class P1InterventionAnalyzer:
                 "text": "The ancient castle stood majestically on the hilltop, its weathered stones telling tales of centuries past. Knights once roamed these halls, their armor clanking as they prepared for battle."
             },
             {
+                "category": "narrative", 
+                "text": "Sarah walked through the misty forest, her footsteps echoing softly on the damp leaves. The moonlight filtered through the canopy, creating dancing shadows that seemed alive."
+            },
+            {
                 "category": "technical", 
                 "text": "Machine learning algorithms utilize mathematical optimization techniques to minimize loss functions. Gradient descent iteratively adjusts model parameters to improve prediction accuracy."
+            },
+            {
+                "category": "technical",
+                "text": "Neural networks consist of interconnected layers of artificial neurons that process information through weighted connections. Backpropagation enables efficient training by computing gradients."
             },
             {
                 "category": "dialogue",
                 "text": "\"Hello, how are you today?\" she asked with a warm smile. \"I'm doing well, thank you for asking,\" he replied, adjusting his glasses nervously."
             },
             {
+                "category": "dialogue",
+                "text": "\"Can you help me with this problem?\" the student inquired. \"Of course, let's work through it step by step,\" the teacher responded encouragingly."
+            },
+            {
                 "category": "code",
                 "text": "def calculate_attention(query, key, value):\n    scores = torch.matmul(query, key.transpose(-2, -1))\n    attention_weights = F.softmax(scores, dim=-1)\n    return torch.matmul(attention_weights, value)"
             },
             {
+                "category": "code",
+                "text": "for i in range(len(data)):\n    if data[i] is not None:\n        result = process_item(data[i])\n        output.append(result)\n    else:\n        output.append(default_value)"
+            },
+            {
                 "category": "short",
                 "text": "The quick brown fox jumps over the lazy dog. This pangram contains every letter of the alphabet exactly once."
+            },
+            {
+                "category": "short",
+                "text": "Time flies when you're having fun. Every moment counts in life's precious journey."
             }
         ]
         
         logger.info(f"Prepared {len(texts)} test texts across {len(set(t['category'] for t in texts))} categories")
+        logger.info(f"Samples per category: {dict(pd.Series([t['category'] for t in texts]).value_counts())}")
         return texts
     
     def measure_baseline_performance(self):
@@ -145,10 +172,16 @@ class P1InterventionAnalyzer:
             with torch.no_grad():
                 outputs = self.model(**inputs)
                 
-                # Calculate perplexity
+                # Calculate perplexity with proper padding handling
+                logits = outputs.logits
+                shifted_logits = logits[..., :-1, :].contiguous()
+                labels = inputs["input_ids"][..., 1:].contiguous()
+                
+                # CRITICAL FIX: Ignore padding tokens in loss calculation
                 loss = F.cross_entropy(
-                    outputs.logits[0, :-1].contiguous().view(-1, outputs.logits.size(-1)),
-                    inputs["input_ids"][0, 1:].contiguous().view(-1),
+                    shifted_logits.view(-1, shifted_logits.size(-1)),
+                    labels.view(-1),
+                    ignore_index=self.tokenizer.pad_token_id,
                     reduction='mean'
                 )
                 perplexity = torch.exp(loss).item()
@@ -194,12 +227,8 @@ class P1InterventionAnalyzer:
                     output[0][:, 0, :] = 0.0
                 
                 elif intervention_type == "mean_ablation":
-                    # Replace P1 with mean embedding
-                    if hasattr(self, '_mean_embedding'):
-                        output[0][:, 0, :] = self._mean_embedding.to(output[0].device)
-                    else:
-                        # Calculate mean on the fly
-                        output[0][:, 0, :] = output[0][:, 1:, :].mean(dim=1, keepdim=True).expand_as(output[0][:, 0:1, :])
+                    # Replace P1 with pre-computed mean embedding (consistent across all layers)
+                    output[0][:, 0, :] = self._mean_embedding
                 
                 elif intervention_type == "noise_injection":
                     noise_std = kwargs.get("noise_std", 0.1)
@@ -252,10 +281,16 @@ class P1InterventionAnalyzer:
                     with torch.no_grad():
                         outputs = self.model(**inputs)
                         
-                        # Calculate perplexity
+                        # Calculate perplexity with proper padding handling
+                        logits = outputs.logits
+                        shifted_logits = logits[..., :-1, :].contiguous()
+                        labels = inputs["input_ids"][..., 1:].contiguous()
+                        
+                        # CRITICAL FIX: Ignore padding tokens in loss calculation
                         loss = F.cross_entropy(
-                            outputs.logits[0, :-1].contiguous().view(-1, outputs.logits.size(-1)),
-                            inputs["input_ids"][0, 1:].contiguous().view(-1),
+                            shifted_logits.view(-1, shifted_logits.size(-1)),
+                            labels.view(-1),
+                            ignore_index=self.tokenizer.pad_token_id,
                             reduction='mean'
                         )
                         perplexity = torch.exp(loss).item()
@@ -366,6 +401,17 @@ class P1InterventionAnalyzer:
         probing_results = {}
         categories = list(set(category_labels))
         
+        # Check if we have enough samples for cross-validation
+        min_samples_per_class = min(category_labels.count(cat) for cat in categories)
+        max_cv_folds = min(3, min_samples_per_class)  # FIX: Ensure CV folds don't exceed class size
+        
+        logger.info(f"Categories: {categories}")
+        logger.info(f"Min samples per class: {min_samples_per_class}")
+        logger.info(f"Using {max_cv_folds} CV folds")
+        
+        if max_cv_folds < 2:
+            logger.warning("Insufficient samples for reliable cross-validation. Using simple train/test split.")
+        
         for layer_idx in range(0, self.model.config.n_layer + 1, 6):  # Sample every 6 layers
             X = np.array(p1_states_by_layer[layer_idx])
             y = [categories.index(label) for label in category_labels]
@@ -374,17 +420,44 @@ class P1InterventionAnalyzer:
                 # Simple logistic regression probe
                 probe = LogisticRegression(random_state=42, max_iter=1000)
                 
-                # Cross-validation
-                cv_scores = cross_val_score(probe, X, y, cv=3, scoring='accuracy')
-                
-                probing_results[f"layer_{layer_idx}"] = {
-                    "accuracy_mean": float(np.mean(cv_scores)),
-                    "accuracy_std": float(np.std(cv_scores)),
-                    "num_features": X.shape[1],
-                    "num_samples": X.shape[0]
-                }
-                
-                logger.info(f"Layer {layer_idx} probe accuracy: {np.mean(cv_scores):.3f} ± {np.std(cv_scores):.3f}")
+                if max_cv_folds >= 2:
+                    # Cross-validation
+                    cv_scores = cross_val_score(probe, X, y, cv=max_cv_folds, scoring='accuracy')
+                    
+                    probing_results[f"layer_{layer_idx}"] = {
+                        "accuracy_mean": float(np.mean(cv_scores)),
+                        "accuracy_std": float(np.std(cv_scores)),
+                        "num_features": X.shape[1],
+                        "num_samples": X.shape[0],
+                        "cv_folds": max_cv_folds,
+                        "method": "cross_validation"
+                    }
+                    
+                    logger.info(f"Layer {layer_idx} probe accuracy: {np.mean(cv_scores):.3f} ± {np.std(cv_scores):.3f}")
+                else:
+                    # Simple fit on all data (not ideal but works for PoC)
+                    probe.fit(X, y)
+                    accuracy = probe.score(X, y)
+                    
+                    probing_results[f"layer_{layer_idx}"] = {
+                        "accuracy_mean": float(accuracy),
+                        "accuracy_std": 0.0,
+                        "num_features": X.shape[1],
+                        "num_samples": X.shape[0],
+                        "cv_folds": 1,
+                        "method": "full_fit",
+                        "warning": "Insufficient samples for cross-validation"
+                    }
+                    
+                    logger.info(f"Layer {layer_idx} probe accuracy (full fit): {accuracy:.3f}")
+        
+        # Add metadata about limitations
+        probing_results["metadata"] = {
+            "total_samples": len(category_labels),
+            "num_categories": len(categories),
+            "samples_per_category": {cat: category_labels.count(cat) for cat in categories},
+            "limitations": "Small sample size limits statistical reliability. Suitable for PoC only."
+        }
         
         self.results["probing_results"] = probing_results
         self._save_results()
@@ -406,16 +479,19 @@ class P1InterventionAnalyzer:
             intervention_stats = {
                 "degradation_by_category": {},
                 "degradation_summary": {},
-                "layer_effects": {}
+                "layer_effects": {},
+                "statistical_tests": {}
             }
             
             # Collect degradation data
             all_degradations = []
+            category_degradations = {}
             
             for category in [t["category"] for t in self.test_texts]:
                 if category in intervention_data["results_by_category"]:
                     degradations = list(intervention_data["results_by_category"][category]["degradation_by_layer"].values())
                     all_degradations.extend(degradations)
+                    category_degradations[category] = degradations
                     
                     intervention_stats["degradation_by_category"][category] = {
                         "mean": float(np.mean(degradations)),
@@ -432,10 +508,67 @@ class P1InterventionAnalyzer:
                     "median": float(np.median(all_degradations)),
                     "max": float(np.max(all_degradations)),
                     "min": float(np.min(all_degradations)),
-                    "significant_degradation": np.mean(all_degradations) > 0.05  # >5% degradation
+                    "significant_degradation_5pct": np.mean(all_degradations) > 0.05,  # >5% degradation
+                    "significant_degradation_10pct": np.mean(all_degradations) > 0.10,  # >10% degradation
+                    "sample_size": len(all_degradations)
                 }
+                
+                # Simple statistical tests (one-sample t-test against 0)
+                if len(all_degradations) > 1:
+                    t_stat, p_value = stats.ttest_1samp(all_degradations, 0)
+                    intervention_stats["statistical_tests"]["one_sample_ttest"] = {
+                        "t_statistic": float(t_stat),
+                        "p_value": float(p_value),
+                        "significant_at_05": p_value < 0.05,
+                        "interpretation": "Degradation significantly different from zero" if p_value < 0.05 else "No significant degradation"
+                    }
+            
+            # Layer-wise analysis
+            for layer_idx in intervention_data["layer_indices"]:
+                layer_degradations = []
+                for category in category_degradations:
+                    if layer_idx in intervention_data["results_by_layer"][layer_idx]["performance_degradation"]:
+                        layer_degradations.append(
+                            intervention_data["results_by_layer"][layer_idx]["performance_degradation"][category]
+                        )
+                
+                if layer_degradations:
+                    intervention_stats["layer_effects"][f"layer_{layer_idx}"] = {
+                        "mean_degradation": float(np.mean(layer_degradations)),
+                        "std_degradation": float(np.std(layer_degradations)),
+                        "max_degradation": float(np.max(layer_degradations)),
+                        "critical_layer": np.mean(layer_degradations) > 0.1  # >10% degradation
+                    }
             
             statistical_results[intervention_name] = intervention_stats
+        
+        # Cross-intervention comparison (if multiple interventions)
+        if len(self.results["intervention_results"]) > 1:
+            logger.info("Performing cross-intervention comparison...")
+            all_intervention_effects = []
+            intervention_names = []
+            
+            for intervention_name, stats in statistical_results.items():
+                if "degradation_summary" in stats and "mean" in stats["degradation_summary"]:
+                    all_intervention_effects.append(stats["degradation_summary"]["mean"])
+                    intervention_names.append(intervention_name)
+            
+            if len(all_intervention_effects) > 1:
+                # Find most/least impactful interventions
+                max_effect_idx = np.argmax(all_intervention_effects)
+                min_effect_idx = np.argmin(all_intervention_effects)
+                
+                statistical_results["cross_intervention_summary"] = {
+                    "most_impactful": {
+                        "intervention": intervention_names[max_effect_idx],
+                        "mean_degradation": float(all_intervention_effects[max_effect_idx])
+                    },
+                    "least_impactful": {
+                        "intervention": intervention_names[min_effect_idx],
+                        "mean_degradation": float(all_intervention_effects[min_effect_idx])
+                    },
+                    "effect_range": float(np.max(all_intervention_effects) - np.min(all_intervention_effects))
+                }
         
         self.results["statistical_analysis"] = statistical_results
         self._save_results()
