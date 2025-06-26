@@ -12,7 +12,7 @@ Date: June 2025
 
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer, AutoModelForCausalLM, GPT2LMHeadModel
+from transformers import AutoTokenizer, AutoModelForCausalLM
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -23,7 +23,7 @@ from typing import Dict, List, Tuple, Optional, Callable
 import logging
 from datetime import datetime
 import warnings
-from scipy import stats
+from scipy import stats as scipy_stats
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.model_selection import cross_val_score
@@ -515,7 +515,7 @@ class P1InterventionAnalyzer:
                 
                 # Simple statistical tests (one-sample t-test against 0)
                 if len(all_degradations) > 1:
-                    t_stat, p_value = stats.ttest_1samp(all_degradations, 0)
+                    t_stat, p_value = scipy_stats.ttest_1samp(all_degradations, 0)
                     intervention_stats["statistical_tests"]["one_sample_ttest"] = {
                         "t_statistic": float(t_stat),
                         "p_value": float(p_value),
@@ -527,7 +527,9 @@ class P1InterventionAnalyzer:
             for layer_idx in intervention_data["layer_indices"]:
                 layer_degradations = []
                 for category in category_degradations:
-                    if layer_idx in intervention_data["results_by_layer"][layer_idx]["performance_degradation"]:
+                    # Fix the nested access issue
+                    if (layer_idx in intervention_data["results_by_layer"] and 
+                        category in intervention_data["results_by_layer"][layer_idx]["performance_degradation"]):
                         layer_degradations.append(
                             intervention_data["results_by_layer"][layer_idx]["performance_degradation"][category]
                         )
@@ -580,207 +582,308 @@ class P1InterventionAnalyzer:
         logger.info("Creating publication-ready figures...")
         
         # Set publication style
-        plt.style.use('seaborn-v0_8-whitegrid')
-        sns.set_palette("Set2")
+        plt.style.use('default')
+        sns.set_palette("husl")
         
         # Figure 1: Baseline P1 attention patterns across layers
         self._create_baseline_attention_figure()
         
-        # Figure 2: Intervention effects on perplexity
-        self._create_intervention_effects_figure()
+        # Figure 2: Intervention effects on perplexity (only if intervention data exists)
+        if self.results.get("intervention_results"):
+            self._create_intervention_effects_figure()
+            
+            # Figure 3: Layer-wise intervention impact (only if multi-layer data exists)
+            self._create_layer_wise_impact_figure()
+        else:
+            logger.warning("No intervention results found - skipping intervention figures")
         
-        # Figure 3: Layer-wise intervention impact
-        self._create_layer_wise_impact_figure()
+        # Figure 4: Probing results (only if probing data exists)
+        if self.results.get("probing_results") and len(self.results["probing_results"]) > 1:
+            self._create_probing_results_figure()
+        else:
+            logger.warning("No sufficient probing results found - skipping probing figure")
         
-        # Figure 4: Probing results
-        self._create_probing_results_figure()
-        
-        logger.info(f"All figures saved to {self.output_dir / 'figures'}")
+        logger.info(f"All available figures saved to {self.output_dir / 'figures'}")
     
     def _create_baseline_attention_figure(self):
         """Create baseline P1 attention pattern figure"""
-        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-        
-        # Left panel: P1 attention by layer across categories
-        categories = [t["category"] for t in self.test_texts]
-        layers = list(range(self.model.config.n_layer))
-        
-        for category in set(categories):
-            if category in self.results["baseline_results"]["attention_patterns"]:
-                attention_values = self.results["baseline_results"]["attention_patterns"][category]
-                axes[0].plot(layers, attention_values, marker='o', label=category, linewidth=2)
-        
-        axes[0].set_xlabel('Layer', fontsize=12)
-        axes[0].set_ylabel('P1 Attention Strength', fontsize=12)
-        axes[0].set_title('P1 Attention Across Layers by Category', fontsize=14, fontweight='bold')
-        axes[0].legend()
-        axes[0].grid(True, alpha=0.3)
-        
-        # Right panel: Baseline perplexity by category
-        baseline_ppls = [self.results["baseline_results"]["perplexity"][cat] for cat in set(categories)]
-        bars = axes[1].bar(set(categories), baseline_ppls, alpha=0.7)
-        axes[1].set_ylabel('Perplexity', fontsize=12)
-        axes[1].set_title('Baseline Perplexity by Category', fontsize=14, fontweight='bold')
-        axes[1].tick_params(axis='x', rotation=45)
-        
-        # Add value labels on bars
-        for bar, ppl in zip(bars, baseline_ppls):
-            axes[1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
-                        f'{ppl:.1f}', ha='center', va='bottom', fontweight='bold')
-        
-        plt.tight_layout()
-        plt.savefig(self.output_dir / "figures" / "baseline_analysis.pdf", dpi=300, bbox_inches='tight')
-        plt.close()
+        try:
+            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+            
+            # Left panel: P1 attention by layer across categories
+            categories = [t["category"] for t in self.test_texts]
+            unique_categories = sorted(set(categories))
+            layers = list(range(self.model.config.n_layer))
+            
+            for category in unique_categories:
+                if category in self.results["baseline_results"]["attention_patterns"]:
+                    attention_values = self.results["baseline_results"]["attention_patterns"][category]
+                    if len(attention_values) == len(layers):  # Ensure data length matches
+                        axes[0].plot(layers, attention_values, marker='o', label=category, linewidth=2)
+                    else:
+                        logger.warning(f"Attention data length mismatch for {category}: {len(attention_values)} vs {len(layers)}")
+            
+            axes[0].set_xlabel('Layer', fontsize=12)
+            axes[0].set_ylabel('P1 Attention Strength', fontsize=12)
+            axes[0].set_title('P1 Attention Across Layers by Category', fontsize=14, fontweight='bold')
+            axes[0].legend()
+            axes[0].grid(True, alpha=0.3)
+            
+            # Right panel: Baseline perplexity by category
+            baseline_ppls = [self.results["baseline_results"]["perplexity"][cat] for cat in unique_categories]
+            bars = axes[1].bar(unique_categories, baseline_ppls, alpha=0.7)
+            axes[1].set_ylabel('Perplexity', fontsize=12)
+            axes[1].set_title('Baseline Perplexity by Category', fontsize=14, fontweight='bold')
+            axes[1].tick_params(axis='x', rotation=45)
+            
+            # Add value labels on bars
+            for bar, ppl in zip(bars, baseline_ppls):
+                axes[1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
+                            f'{ppl:.1f}', ha='center', va='bottom', fontweight='bold')
+            
+            plt.tight_layout()
+            plt.savefig(self.output_dir / "figures" / "baseline_analysis.pdf", dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info("Created baseline analysis figure")
+            
+        except Exception as e:
+            logger.error(f"Error creating baseline figure: {e}")
+            plt.close('all')  # Clean up any open figures
     
     def _create_intervention_effects_figure(self):
         """Create intervention effects visualization"""
         if not self.results.get("intervention_results"):
+            logger.warning("No intervention results to plot")
             return
         
-        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-        axes = axes.flatten()
-        
-        categories = list(set(t["category"] for t in self.test_texts))
-        
-        # Get representative interventions for visualization
-        key_interventions = [key for key in self.results["intervention_results"].keys() if "ablation" in key][:4]
-        
-        for idx, intervention_name in enumerate(key_interventions):
-            if idx >= 4:
-                break
+        try:
+            fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+            axes = axes.flatten()
+            
+            categories = [t["category"] for t in self.test_texts]
+            unique_categories = sorted(set(categories))
+            
+            # Get representative interventions for visualization
+            intervention_keys = list(self.results["intervention_results"].keys())
+            key_interventions = intervention_keys[:4]  # Take first 4 available
+            
+            for idx, intervention_name in enumerate(key_interventions):
+                if idx >= 4:
+                    break
+                    
+                intervention_data = self.results["intervention_results"][intervention_name]
                 
-            intervention_data = self.results["intervention_results"][intervention_name]
-            
-            # Plot performance degradation by category
-            degradations = []
-            for category in categories:
-                if category in intervention_data["results_by_category"]:
-                    deg_values = list(intervention_data["results_by_category"][category]["degradation_by_layer"].values())
-                    degradations.append(np.mean(deg_values))
-                else:
-                    degradations.append(0)
-            
-            bars = axes[idx].bar(categories, degradations, alpha=0.7)
-            axes[idx].set_title(intervention_name.replace('_', ' ').title(), fontsize=12, fontweight='bold')
-            axes[idx].set_ylabel('Performance Degradation (%)', fontsize=10)
-            axes[idx].tick_params(axis='x', rotation=45)
-            axes[idx].axhline(y=0, color='black', linestyle='-', alpha=0.3)
-            
-            # Color bars by degradation level
-            for bar, deg in zip(bars, degradations):
-                if deg > 0.1:  # >10% degradation
-                    bar.set_color('red')
-                elif deg > 0.05:  # >5% degradation
-                    bar.set_color('orange')
-                else:
-                    bar.set_color('green')
+                # Plot performance degradation by category
+                degradations = []
+                for category in unique_categories:
+                    if category in intervention_data.get("results_by_category", {}):
+                        deg_values = list(intervention_data["results_by_category"][category].get("degradation_by_layer", {}).values())
+                        if deg_values:
+                            degradations.append(np.mean(deg_values))
+                        else:
+                            degradations.append(0)
+                    else:
+                        degradations.append(0)
                 
-                # Add value labels
-                axes[idx].text(bar.get_x() + bar.get_width()/2, 
-                              bar.get_height() + (0.01 if deg >= 0 else -0.02), 
-                              f'{deg:.1%}', ha='center', 
-                              va='bottom' if deg >= 0 else 'top', fontsize=9)
-        
-        plt.tight_layout()
-        plt.savefig(self.output_dir / "figures" / "intervention_effects.pdf", dpi=300, bbox_inches='tight')
-        plt.close()
+                if degradations:  # Only plot if we have data
+                    bars = axes[idx].bar(unique_categories, degradations, alpha=0.7)
+                    axes[idx].set_title(intervention_name.replace('_', ' ').title(), fontsize=12, fontweight='bold')
+                    axes[idx].set_ylabel('Performance Degradation (%)', fontsize=10)
+                    axes[idx].tick_params(axis='x', rotation=45)
+                    axes[idx].axhline(y=0, color='black', linestyle='-', alpha=0.3)
+                    
+                    # Color bars by degradation level
+                    for bar, deg in zip(bars, degradations):
+                        if deg > 0.1:  # >10% degradation
+                            bar.set_color('red')
+                        elif deg > 0.05:  # >5% degradation
+                            bar.set_color('orange')
+                        else:
+                            bar.set_color('green')
+                        
+                        # Add value labels
+                        axes[idx].text(bar.get_x() + bar.get_width()/2, 
+                                      bar.get_height() + (0.01 if deg >= 0 else -0.02), 
+                                      f'{deg:.1%}', ha='center', 
+                                      va='bottom' if deg >= 0 else 'top', fontsize=9)
+                else:
+                    axes[idx].text(0.5, 0.5, 'No Data Available', ha='center', va='center', 
+                                  transform=axes[idx].transAxes, fontsize=12)
+                    axes[idx].set_title(intervention_name.replace('_', ' ').title(), fontsize=12)
+            
+            # Hide unused subplots
+            for idx in range(len(key_interventions), 4):
+                axes[idx].set_visible(False)
+            
+            plt.tight_layout()
+            plt.savefig(self.output_dir / "figures" / "intervention_effects.pdf", dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info("Created intervention effects figure")
+            
+        except Exception as e:
+            logger.error(f"Error creating intervention effects figure: {e}")
+            plt.close('all')
     
     def _create_layer_wise_impact_figure(self):
         """Create layer-wise intervention impact visualization"""
         if not self.results.get("intervention_results"):
+            logger.warning("No intervention results for layer-wise analysis")
             return
         
-        # Find ablation experiment with multiple layers
-        ablation_experiment = None
-        for key, data in self.results["intervention_results"].items():
-            if "ablation" in key and len(data["layer_indices"]) > 3:
-                ablation_experiment = data
-                break
-        
-        if not ablation_experiment:
-            return
-        
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        categories = list(set(t["category"] for t in self.test_texts))
-        layers = ablation_experiment["layer_indices"]
-        
-        # Create heatmap of performance degradation
-        degradation_matrix = []
-        
-        for category in categories:
-            if category in ablation_experiment["results_by_category"]:
-                row = [ablation_experiment["results_by_category"][category]["degradation_by_layer"].get(layer, 0) 
-                       for layer in layers]
-                degradation_matrix.append(row)
-            else:
-                degradation_matrix.append([0] * len(layers))
-        
-        degradation_matrix = np.array(degradation_matrix)
-        
-        # Create heatmap
-        im = ax.imshow(degradation_matrix, cmap='RdYlBu_r', aspect='auto')
-        
-        # Set ticks and labels
-        ax.set_xticks(range(len(layers)))
-        ax.set_xticklabels([f'Layer {l}' for l in layers])
-        ax.set_yticks(range(len(categories)))
-        ax.set_yticklabels(categories)
-        
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax)
-        cbar.set_label('Performance Degradation', rotation=270, labelpad=20)
-        
-        # Add text annotations
-        for i in range(len(categories)):
-            for j in range(len(layers)):
-                text = ax.text(j, i, f'{degradation_matrix[i, j]:.1%}',
-                             ha="center", va="center", color="black", fontweight='bold')
-        
-        ax.set_title('Layer-wise P1 Ablation Impact by Text Category', fontsize=14, fontweight='bold')
-        ax.set_xlabel('Intervention Layer', fontsize=12)
-        ax.set_ylabel('Text Category', fontsize=12)
-        
-        plt.tight_layout()
-        plt.savefig(self.output_dir / "figures" / "layer_wise_impact.pdf", dpi=300, bbox_inches='tight')
-        plt.close()
+        try:
+            # Find ablation experiment with multiple layers
+            ablation_experiment = None
+            for key, data in self.results["intervention_results"].items():
+                if "ablation" in key and len(data.get("layer_indices", [])) > 3:
+                    ablation_experiment = data
+                    break
+            
+            if not ablation_experiment:
+                logger.warning("No suitable ablation experiment found for layer-wise analysis")
+                return
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            categories = [t["category"] for t in self.test_texts]
+            unique_categories = sorted(set(categories))
+            layers = ablation_experiment["layer_indices"]
+            
+            # Create heatmap of performance degradation
+            degradation_matrix = []
+            
+            for category in unique_categories:
+                if category in ablation_experiment.get("results_by_category", {}):
+                    row = []
+                    for layer in layers:
+                        degradation = ablation_experiment["results_by_category"][category].get("degradation_by_layer", {}).get(layer, 0)
+                        row.append(degradation)
+                    degradation_matrix.append(row)
+                else:
+                    degradation_matrix.append([0] * len(layers))
+            
+            if not degradation_matrix or not any(any(row) for row in degradation_matrix):
+                logger.warning("No degradation data found for heatmap")
+                return
+            
+            degradation_matrix = np.array(degradation_matrix)
+            
+            # Create heatmap
+            im = ax.imshow(degradation_matrix, cmap='RdYlBu_r', aspect='auto')
+            
+            # Set ticks and labels
+            ax.set_xticks(range(len(layers)))
+            ax.set_xticklabels([f'Layer {l}' for l in layers])
+            ax.set_yticks(range(len(unique_categories)))
+            ax.set_yticklabels(unique_categories)
+            
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax)
+            cbar.set_label('Performance Degradation', rotation=270, labelpad=20)
+            
+            # Add text annotations
+            for i in range(len(unique_categories)):
+                for j in range(len(layers)):
+                    text = ax.text(j, i, f'{degradation_matrix[i, j]:.1%}',
+                                 ha="center", va="center", color="black", fontweight='bold')
+            
+            ax.set_title('Layer-wise P1 Ablation Impact by Text Category', fontsize=14, fontweight='bold')
+            ax.set_xlabel('Intervention Layer', fontsize=12)
+            ax.set_ylabel('Text Category', fontsize=12)
+            
+            plt.tight_layout()
+            plt.savefig(self.output_dir / "figures" / "layer_wise_impact.pdf", dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info("Created layer-wise impact figure")
+            
+        except Exception as e:
+            logger.error(f"Error creating layer-wise impact figure: {e}")
+            plt.close('all')
     
     def _create_probing_results_figure(self):
         """Create probing results visualization"""
         if not self.results.get("probing_results"):
+            logger.warning("No probing results to plot")
             return
         
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        layers = sorted([int(k.split('_')[1]) for k in self.results["probing_results"].keys()])
-        accuracies = [self.results["probing_results"][f"layer_{layer}"]["accuracy_mean"] for layer in layers]
-        std_errors = [self.results["probing_results"][f"layer_{layer}"]["accuracy_std"] for layer in layers]
-        
-        # Plot with error bars
-        ax.errorbar(layers, accuracies, yerr=std_errors, marker='o', linewidth=2, 
-                   markersize=8, capsize=5, capthick=2)
-        
-        # Add chance level line
-        num_categories = len(set(t["category"] for t in self.test_texts))
-        chance_level = 1.0 / num_categories
-        ax.axhline(y=chance_level, color='red', linestyle='--', alpha=0.7, 
-                  label=f'Chance Level ({chance_level:.2f})')
-        
-        ax.set_xlabel('Layer', fontsize=12)
-        ax.set_ylabel('Classification Accuracy', fontsize=12)
-        ax.set_title('P1 Category Classification Probe Accuracy Across Layers', 
-                     fontsize=14, fontweight='bold')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        ax.set_ylim(0, 1)
-        
-        # Add value labels
-        for layer, acc, std in zip(layers, accuracies, std_errors):
-            ax.text(layer, acc + std + 0.02, f'{acc:.2f}', ha='center', va='bottom', fontweight='bold')
-        
-        plt.tight_layout()
-        plt.savefig(self.output_dir / "figures" / "probing_results.pdf", dpi=300, bbox_inches='tight')
-        plt.close()
+        try:
+            # Filter out metadata and get actual layer results
+            layer_results = {k: v for k, v in self.results["probing_results"].items() 
+                           if k.startswith("layer_") and "_" in k}
+            
+            if not layer_results:
+                logger.warning("No layer results found in probing data")
+                return
+            
+            # Extract layer numbers safely
+            layers = []
+            for k in layer_results.keys():
+                try:
+                    parts = k.split('_')
+                    if len(parts) >= 2:
+                        layer_num = int(parts[1])
+                        layers.append(layer_num)
+                except (ValueError, IndexError) as e:
+                    logger.warning(f"Could not parse layer number from key '{k}': {e}")
+                    continue
+            
+            if not layers:
+                logger.warning("No valid layer numbers found")
+                return
+            
+            layers = sorted(layers)
+            
+            # Extract accuracies and errors for valid layers
+            accuracies = []
+            std_errors = []
+            
+            for layer in layers:
+                layer_key = f"layer_{layer}"
+                if layer_key in layer_results:
+                    acc = layer_results[layer_key].get("accuracy_mean", 0)
+                    std = layer_results[layer_key].get("accuracy_std", 0)
+                    accuracies.append(acc)
+                    std_errors.append(std)
+                else:
+                    accuracies.append(0)
+                    std_errors.append(0)
+            
+            if not accuracies or all(acc == 0 for acc in accuracies):
+                logger.warning("No valid accuracy data found")
+                return
+            
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            # Plot with error bars
+            ax.errorbar(layers, accuracies, yerr=std_errors, marker='o', linewidth=2, 
+                       markersize=8, capsize=5, capthick=2)
+            
+            # Add chance level line
+            num_categories = len(set(t["category"] for t in self.test_texts))
+            chance_level = 1.0 / num_categories
+            ax.axhline(y=chance_level, color='red', linestyle='--', alpha=0.7, 
+                      label=f'Chance Level ({chance_level:.2f})')
+            
+            ax.set_xlabel('Layer', fontsize=12)
+            ax.set_ylabel('Classification Accuracy', fontsize=12)
+            ax.set_title('P1 Category Classification Probe Accuracy Across Layers', 
+                         fontsize=14, fontweight='bold')
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            ax.set_ylim(0, 1)
+            
+            # Add value labels
+            for layer, acc, std in zip(layers, accuracies, std_errors):
+                if acc > 0:  # Only label non-zero values
+                    ax.text(layer, acc + std + 0.02, f'{acc:.2f}', ha='center', va='bottom', fontweight='bold')
+            
+            plt.tight_layout()
+            plt.savefig(self.output_dir / "figures" / "probing_results.pdf", dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info("Created probing results figure")
+            
+        except Exception as e:
+            logger.error(f"Error creating probing results figure: {e}")
+            plt.close('all')
     
     def _save_results(self):
         """Save results to JSON file with timestamp"""
