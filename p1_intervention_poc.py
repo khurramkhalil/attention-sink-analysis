@@ -985,7 +985,10 @@ class P1InterventionAnalyzer:
             
             for intervention, impact in interventions_by_impact[:5]:
                 report.append(f"- {intervention}: {impact:.1%} average degradation")
-                if stats[intervention]["degradation_summary"]["significant_degradation"]:
+                # Safe check for significant degradation
+                degradation_summary = stats[intervention].get("degradation_summary", {})
+                if (degradation_summary.get("significant_degradation_5pct", False) or 
+                    degradation_summary.get("significant_degradation_10pct", False)):
                     report.append("  ⚠️ Significant impact detected")
             report.append("")
         
@@ -1020,7 +1023,9 @@ class P1InterventionAnalyzer:
         if "statistical_analysis" in self.results:
             significant_interventions = []
             for intervention, data in self.results["statistical_analysis"].items():
-                if data.get("degradation_summary", {}).get("significant_degradation", False):
+                degradation_summary = data.get("degradation_summary", {})
+                if (degradation_summary.get("significant_degradation_5pct", False) or 
+                    degradation_summary.get("significant_degradation_10pct", False)):
                     significant_interventions.append(intervention)
             
             if significant_interventions:
@@ -1066,9 +1071,14 @@ class P1InterventionAnalyzer:
         print("="*60)
         
         if "statistical_analysis" in self.results:
-            significant_count = sum(1 for data in self.results["statistical_analysis"].values() 
-                                  if data.get("degradation_summary", {}).get("significant_degradation", False))
+            significant_count = 0
             total_interventions = len(self.results["statistical_analysis"])
+            
+            for data in self.results["statistical_analysis"].values():
+                degradation_summary = data.get("degradation_summary", {})
+                if (degradation_summary.get("significant_degradation_5pct", False) or 
+                    degradation_summary.get("significant_degradation_10pct", False)):
+                    significant_count += 1
             
             print(f"📊 Interventions tested: {total_interventions}")
             print(f"⚡ Significant impacts: {significant_count}")
